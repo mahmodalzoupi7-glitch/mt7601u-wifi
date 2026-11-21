@@ -10,17 +10,18 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Install Build Dependencies
+      - name: Install Build Dependencies & Clang 12
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex git libssl-dev libelf-dev python3 zip wget
-
-      - name: Download Clang 12.0.5 (r416183b)
-        run: |
-          mkdir -p clang
-          curl -sL "https://googlesource.com" -o clang.tar.gz
-          tar -xzf clang.tar.gz -C clang
-          rm -f clang.tar.gz
+          sudo apt-get install -y bc bison build-essential ccache curl flex git libssl-dev libelf-dev python3 zip wget clang-12 lld-12 llvm-12
+          sudo ln -sf /usr/bin/clang-12 /usr/bin/clang
+          sudo ln -sf /usr/bin/ld.lld-12 /usr/bin/ld.lld
+          sudo ln -sf /usr/bin/llvm-ar-12 /usr/bin/llvm-ar
+          sudo ln -sf /usr/bin/llvm-nm-12 /usr/bin/llvm-nm
+          sudo ln -sf /usr/bin/llvm-strip-12 /usr/bin/llvm-strip
+          sudo ln -sf /usr/bin/llvm-objcopy-12 /usr/bin/llvm-objcopy
+          sudo ln -sf /usr/bin/llvm-objdump-12 /usr/bin/llvm-objdump
+          sudo ln -sf /usr/bin/llvm-readelf-12 /usr/bin/llvm-readelf
 
       - name: Fetch Exact 5.10.237 Kernel Source
         run: |
@@ -33,7 +34,6 @@ jobs:
       - name: Configure Kernel & vermagic
         working-directory: kernel
         run: |
-          export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
           make ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 gki_defconfig
           ./scripts/config --set-str CONFIG_LOCALVERSION "-android12-9-00013-gd09ef2e980e0-ab13968955"
           ./scripts/config --disable CONFIG_LOCALVERSION_AUTO
@@ -45,7 +45,6 @@ jobs:
       - name: Compile Kernel Modules
         working-directory: kernel
         run: |
-          export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
           make -j$(nproc) ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 modules
 
       - name: Package Ready KernelSU Module
@@ -55,7 +54,7 @@ jobs:
           cp kernel/net/wireless/cfg80211.ko ksu_module/modules/
           cp kernel/net/mac80211/mac80211.ko ksu_module/modules/
           cp kernel/drivers/net/wireless/mediatek/mt7601u/mt7601u.ko ksu_module/modules/
-          curl -sL "https://kernel.org" -o ksu_module/system/vendor/firmware/mt7601u.bin
+          curl -sL "https://githubusercontent.com" -o ksu_module/system/vendor/firmware/mt7601u.bin
           printf "id=mt7601u_wifi_temp\nname=MT7601U Wi-Fi Driver\nversion=v1.0\nversionCode=1\nauthor=CustomBuilder\ndescription=Kernel modules and firmware for MT7601U (5.10.237)\n" > ksu_module/module.prop
           printf "#!/system/bin/sh\nMODDIR=\${0%%/*}\nsleep 15\ninsmod \$MODDIR/modules/cfg80211.ko\ninsmod \$MODDIR/modules/mac80211.ko\ninsmod \$MODDIR/modules/mt7601u.ko\n" > ksu_module/service.sh
           chmod 755 ksu_module/service.sh
