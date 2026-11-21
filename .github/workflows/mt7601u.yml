@@ -1,22 +1,26 @@
 name: Build MT7601U KSU Module
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Install Build Tools
+      - name: Install Build Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex git libssl-dev libelf-dev python3 zip wget
 
-      - name: Download Official Clang 12.0.5
+      - name: Download Clang 12.0.5 (r416183b)
         run: |
-          git clone --depth=1 https://googlesource.com -b master clang-repo
-          mv clang-repo/clang-r416183b clang
-          rm -rf clang-repo
+          mkdir -p clang
+          curl -sL "https://googlesource.com" -o clang.tar.gz
+          tar -xzf clang.tar.gz -C clang
+          rm -f clang.tar.gz
 
       - name: Fetch Exact 5.10.237 Kernel Source
         run: |
@@ -48,17 +52,12 @@ jobs:
         run: |
           mkdir -p ksu_module/modules
           mkdir -p ksu_module/system/vendor/firmware
-          
           cp kernel/net/wireless/cfg80211.ko ksu_module/modules/
           cp kernel/net/mac80211/mac80211.ko ksu_module/modules/
           cp kernel/drivers/net/wireless/mediatek/mt7601u/mt7601u.ko ksu_module/modules/
-          
-          curl -sL https://kernel.org -o ksu_module/system/vendor/firmware/mt7601u.bin
-          
+          curl -sL "https://kernel.org" -o ksu_module/system/vendor/firmware/mt7601u.bin
           printf "id=mt7601u_wifi_temp\nname=MT7601U Wi-Fi Driver\nversion=v1.0\nversionCode=1\nauthor=CustomBuilder\ndescription=Kernel modules and firmware for MT7601U (5.10.237)\n" > ksu_module/module.prop
-
           printf "#!/system/bin/sh\nMODDIR=\${0%%/*}\nsleep 15\ninsmod \$MODDIR/modules/cfg80211.ko\ninsmod \$MODDIR/modules/mac80211.ko\ninsmod \$MODDIR/modules/mt7601u.ko\n" > ksu_module/service.sh
-
           chmod 755 ksu_module/service.sh
           cd ksu_module
           zip -r ../MT7601U_KSU_Module.zip ./*
@@ -68,4 +67,3 @@ jobs:
         with:
           name: MT7601U_KSU_Module
           path: MT7601U_KSU_Module.zip
-          
